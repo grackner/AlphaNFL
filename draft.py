@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 """
-Use 2023 data to simulate a 2024 ppr draft. Utilize 2024 data to in-fill rookies. Draft rules:
+Draft simulation for PPR
 - Snake draft
 - 14 teams
 - Starters: QB, 2 RB, 2 WR, TE, 1 FLEX
@@ -16,14 +16,17 @@ FLEX = 1
 BENCH = 7
 ROUNDS = sum(STARTERS.values()) + FLEX + BENCH      # 14 rounds = 196 picks
 POSITIONS = list(STARTERS)
-ROSTER_CAP = {"QB": 2, "RB": 8, "WR": 8, "TE": 3}   # max per position, mimic realistic drafting
+ROSTER_CAP = {"QB": 2, "RB": 8, "WR": 8, "TE": 3}   # max per position
 # 0-indexed depth of "replacement level" per position (league-wide starters + flex share)
+# TODO: Calibrate replacement level
 REPL_RANK = {"QB": 14, "RB": 36, "WR": 40, "TE": 14} # Relates to value of the player similar to WAR in baseball
 
 
-# Get player season totals for fantasy rankings
-def season_totals(weekly):
-    g = weekly.sort_values("week").groupby("player_id")
+def season_totals(weekly_df):
+    """
+    Calculate season totals for a player based on given dataset
+    """
+    g = weekly_df.sort_values("week").groupby("player_id")
     out = g.agg(
         name=("player_display_name", "last"),
         position=("position", "last"),
@@ -34,27 +37,31 @@ def season_totals(weekly):
     out["ppg"] = out["ppr_pts"] / out["games"]
     return out
 
-def build_board(tot, shrink_games=4, season_games=16):
-    b = tot.copy()
-    # replacement-level ppg per position, used to shrink small samples
+def build_board(totals, shrink_games=4, season_games=16):
+    """
+    Build draft board based on past player's season totals
+    """
     repl_ppg = {}
     for p in POSITIONS:
-        s = b[(b.position == p) & (b.games >= 8)].ppg.sort_values(ascending=False)
+        s = totals[(totals.position == p) & (totals.games >= 8)].ppg.sort_values(ascending=False)
         repl_ppg[p] = s.iloc[min(REPL_RANK[p], len(s) - 1)]
-    w = b.games / (b.games + shrink_games)
-    b["proj_ppg"] = w * b.ppg + (1 - w) * b.position.map(repl_ppg)
-    b["proj_pts"] = b.proj_ppg * season_games
+    w = totals.games / (totals.games + shrink_games)
+    totals["proj_ppg"] = w * totals.ppg + (1 - w) * totals.position.map(repl_ppg)
+    totals["proj_pts"] = totals.proj_ppg * season_games
     base = {
-        p: b[b.position == p].proj_pts.sort_values(ascending=False).iloc[REPL_RANK[p]]
+        p: totals[totals.position == p].proj_pts.sort_values(ascending=False).iloc[REPL_RANK[p]]
         for p in POSITIONS
     }
-    b["vorp"] = b.proj_pts - b.position.map(base)
-    b = b.sort_values("vorp", ascending=False).reset_index(drop=True)
-    b["rank"] = b.index + 1
-    return b
+    totals["vorp"] = totals.proj_pts - totals.position.map(base)
+    totals = totals.sort_values("vorp", ascending=False).reset_index(drop=True)
+    totals["rank"] = totals.index + 1
+    return totals
 
 
 def simulate_draft(board, seed=SEED, n_teams=N_TEAMS, rounds=ROUNDS, pool_size=60):
+    """
+    Run one simulation of the draft given a draft board, number of teams, rounds
+    """
     rng = np.random.default_rng(seed)
     cfg = {
         t: {"noise": rng.uniform(8, 25),
@@ -81,6 +88,7 @@ def simulate_draft(board, seed=SEED, n_teams=N_TEAMS, rounds=ROUNDS, pool_size=6
             row = cand.iloc[int(np.argmax(score))]
             counts[t][row.position] += 1
             avail = avail.drop(index=row.name)
+            # Update draft log
             log.append({"pick": pick, "round": rnd, "slot": slot, "team": t + 1,
                         "player_id": row.player_id, "name": row["name"],
                         "position": row.position, "board_rank": row["rank"],
@@ -90,6 +98,9 @@ def simulate_draft(board, seed=SEED, n_teams=N_TEAMS, rounds=ROUNDS, pool_size=6
     return draft_log, rosters
 
 def build_waiver(board, drafted_ids, tot_next):
+    """
+    Build waiver wire with remaining players not drafted from the board
+    """
     ids = tot_next[["player_id", "name", "position", "team"]]
     w = ids[~ids.player_id.isin(drafted_ids)].merge(
         board[["player_id", "games", "ppg", "proj_pts", "vorp", "rank"]],
@@ -102,8 +113,10 @@ def build_waiver(board, drafted_ids, tot_next):
     return w.sort_values("vorp", ascending=False).reset_index(drop=True)
 
 
-# Sanity check to ensure that optimal line-up was drafted per team
 def lineup_strength(draft_log):
+    """
+    Sanity check to ensure that optimal line-up was drafted per team
+    """
     rows = []
     for t, g in draft_log.groupby("team"):
         g = g.sort_values("proj_pts", ascending=False)
