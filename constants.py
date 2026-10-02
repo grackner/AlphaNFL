@@ -1,4 +1,9 @@
+"""
+Constants for RL environment
+"""
+
 import numpy as np
+
 POS = ["QB", "RB", "WR", "TE"]
 POS_IDX = {p: i for i, p in enumerate(POS)}
 SLOT_NAMES = ["QB", "RB", "RB", "WR", "WR", "TE", "FLEX"]
