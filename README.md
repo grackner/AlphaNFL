@@ -28,4 +28,13 @@ Data:
 
 
 ## Agent Learning/Gymnasium
+*For one season*
 1. Random team is picked for the agent based on `draft_logs`
+2. Bots set their line-ups, agent's line-up is built with no add/drops but vector is constructed with potential moves
+  The observation is a vector of 862 dimensions describing:
+  - the agent's 14 players (position, projected points, recent form, bye status, and so on)
+  - the 20 free-agent candidates
+  - the 40 players on other teams the agent could trade for
+  - a few global values: week number, record, rank, projected score against this week's opponent, and how many adds, trades and actions are left
+3. Once a week starts, the agent will make 1-6 actions (where reward=0) not seeing reward until the end of the week
+4. Repeat every week until season ends and bonus points are calculated
