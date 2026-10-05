@@ -3,7 +3,15 @@ from constants import POS, POS_IDX, REPL_RANK, NF
 import numpy as np
 
 class SeasonData:
+    """
+    SeasonData class is used to organize a given season to train on
+    and a board (built of previous season's data for ex.) for the agent to train on.
+    The view function is used to show data to the agent from before a week w. 
+    """
     def __init__(self, board, weekly, shrink_k=4):
+        """ 
+        Organize player ids within season data
+        """
         weekly = weekly[weekly.position.isin(POS) & (weekly.week <= 18)]
         ids = pd.Index(pd.concat([board.player_id, weekly.player_id]).unique())
         self.ids, self.P, self.k = ids, len(ids), shrink_k
@@ -19,7 +27,7 @@ class SeasonData:
                           ).drop_duplicates("player_id").set_index("player_id").name
         self.name = ids.map(names).to_numpy()
 
-        # prior ppg (from 2023); players with no prior get replacement level
+        # prior ppg (from board's data); players with no prior get replacement level
         repl = []
         for p in POS:
             s = board[board.position == p].proj_ppg.sort_values(ascending=False).to_numpy()
@@ -28,7 +36,7 @@ class SeasonData:
         pr = board.set_index("player_id").proj_ppg.reindex(ids).to_numpy()
         self.prior = np.where(np.isnan(pr), self.repl_ppg[self.pos], pr)
 
-        # weekly points / played matrices, columns = week 0..18
+        # weekly points / played matrices, columns = week 0-18
         self.pts = np.zeros((self.P, 19))
         self.played = np.zeros((self.P, 19), bool)
         r = ids.get_indexer(weekly.player_id)
@@ -52,7 +60,7 @@ class SeasonData:
         self._views = {}
 
     def view(self, w):
-        """Everything knowable at the start of week w (uses weeks < w only)."""
+        """Everything knowable to the agent at the start of week w (uses weeks < w only)."""
         if w in self._views:
             return self._views[w]
         P, k = self.P, self.k
