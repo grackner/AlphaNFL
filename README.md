@@ -32,9 +32,30 @@ Data:
 1. Random team is picked for the agent based on `draft_logs`
 2. Bots set their line-ups, agent's line-up is built with no add/drops but vector is constructed with potential moves
   The observation is a vector of 862 dimensions describing:
-  - the agent's 14 players (position, projected points, recent form, bye status, and so on)
-  - the 20 free-agent candidates
-  - the 40 players on other teams the agent could trade for
+  - the agent's 14 players (plus 11 features per player- see below)
+  - the 20 free-agent candidates (11 features)
+  - the 40 players on other teams the agent could trade for (11 features + owner's win percentage to calculate trade value)
   - a few global values: week number, record, rank, projected score against this week's opponent, and how many adds, trades and actions are left
 3. Once a week starts, the agent will make 1-6 actions (where reward=0) not seeing reward until the end of the week
 4. Repeat every week until season ends and bonus points are calculated
+
+### Player Features
+The 11 features per player (these come from `data.view(week)`)
+- 4 values for the position, as a one-hot (a single 1 marks which of QB/RB/WR/TE)
+- `est`: projected points per game, blending the 2023 prior with 2024 results so far
+- `prior`: the 2023-based projection alone, so the agent can tell the prior from the in-season update
+- `last`1: points last week
+- `last3`: average points over the last 3 weeks he played
+- `gp`: fraction of games played so far this season
+- `avail`: fraction of the last 3 weeks he played, which flags injuries
+- `bye`: 1 if he's on bye this week
+
+### Global values
+- Week number / total weeks
+- Wins / total weeks
+- Losses / total weeks
+- Current rank, scaled to 0-1
+- Projected points for your lineup minus this week's opponent's, divided by 30 (clipped to ±3)
+- Adds left, as a fraction of the allowance
+- Trades left, as a fraction
+- Actions left this week, as a fraction
