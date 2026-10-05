@@ -1,7 +1,8 @@
 # AlphaNFL
 Building a fantasy football reinforcement learning agent
 
-![Uploading tjwatt.jpg…]()
+<img width="447" height="447" alt="tjwatt" src="https://github.com/user-attachments/assets/f9368dd5-9c66-4da6-8d5b-ae1841899a58" />
+
 
 ## League Rules:
 - 14 team, PPR format
