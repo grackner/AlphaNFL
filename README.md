@@ -1,6 +1,8 @@
 # AlphaNFL
 Building a fantasy football reinforcement learning agent
 
+![Uploading tjwatt.jpg…]()
+
 ## League Rules:
 - 14 team, PPR format
 - Snake draft
