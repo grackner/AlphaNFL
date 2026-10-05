@@ -3,10 +3,18 @@ from fantasy_rl import rosters_from_draft_log, round_robin
 from constants import N_STARTERS, N_BENCH, ROSTER, NF, ELIG
 from gymnasium import spaces
 import gymnasium as gym
-# Action ids: 0 = end week | swap(starter s, bench b) | add(candidate k, drop slot r)
-# | trade(market m, give slot a). Invalid actions are masked (use MaskablePPO).
+
 
 class FantasyEnv(gym.Env):
+    """
+    Creates the environment for the fantasy agent to train in taking in SeasonData,
+    draft_logs, weeks in the season to train on, max_actions, etc. 
+    Action ids:
+    - 0 = end week
+    - swap(starter s, bench b)
+    - add(candidate k, drop slot r)
+    - trade(market m, give slot a). Invalid actions are masked (use MaskablePPO).
+    """
     metadata = {"render_modes": []}
 
     def __init__(self, data, draft_logs, n_weeks=14, max_actions=6, max_adds=2,
@@ -30,7 +38,12 @@ class FantasyEnv(gym.Env):
 
     # ---------- helpers ----------
     def _lineup_val(self, ids, score):
-        s, p = score[ids], self.data.pos[ids]
+        """
+        (For bots)
+        Calculates best line-up value using a set of player_ids and the score list.
+        Used for trades and add/drops
+        """
+        s, p = score[ids], self.data.pos[ids] # Split into player's points & position ids
         tot, used = 0.0, np.zeros(len(ids), bool)
         for pos, cnt in ((0, 1), (1, 2), (2, 2), (3, 1)):
             idx = np.where(p == pos)[0]
@@ -40,7 +53,10 @@ class FantasyEnv(gym.Env):
         return tot + (s[rest].max() if len(rest) else 0.0)
 
     def _arrange(self, ids):
-        """Best lineup first (QB,RB,RB,WR,WR,TE,FLEX), bench sorted by score."""
+        """
+        Arrange line-up
+        Best lineup first (QB,RB,RB,WR,WR,TE,FLEX), bench sorted by score.
+        """
         ids = np.asarray(ids)
         s, pos = self.D.start[ids], self.data.pos[ids]
         order = np.argsort(-s, kind="stable")
@@ -72,6 +88,9 @@ class FantasyEnv(gym.Env):
         self._mask = None
 
     def _accept(self, o, give, get):
+        """
+        Accept trade 
+        """
         key = (o, give, get)
         if key not in self._acc:
             r = self.roster[o]
@@ -101,6 +120,10 @@ class FantasyEnv(gym.Env):
             self.owner[r[worst]] = -1; self.owner[best] = t; r[worst] = best
 
     def _bot_move(self, t):
+        """
+        Function for a bot to decide to move based on if roster value is
+        less than the potential roster based on the waiver wire. 
+        """
         self.roster[t] = self._arrange(self.roster[t])
         if self.np_random.random() < self.bot_waiver_prob:
             self._bot_waiver(t)
@@ -138,6 +161,9 @@ class FantasyEnv(gym.Env):
         self._refresh_lists()
 
     def action_masks(self):
+        """
+        Mask actions based on what is valid
+        """
         if self._mask is not None:
             return self._mask
         m = np.zeros(self.n_actions, bool)
@@ -198,6 +224,9 @@ class FantasyEnv(gym.Env):
         self._mask = None
 
     def _play_week(self):
+        """
+        Play week by arranging line-up
+        """
         w, d = self.week, self.data
         sl = np.arange(N_STARTERS)
         sc = np.array([(d.pts[self.roster[t][:N_STARTERS], w]
@@ -221,9 +250,13 @@ class FantasyEnv(gym.Env):
         return 1 + sum(k > key[self.me] for k in key)
 
     def step(self, action):
+        """
+        Function for agent choosing one action
+        """
         a = int(action)
         reward, terminated, info = 0.0, False, {}
         if not self.action_masks()[a]:                 # shouldn't happen with masking
+            # Penalize the agent for an invalid action
             reward -= 0.05
             a = 0
         end_week = a == 0
@@ -245,12 +278,15 @@ class FantasyEnv(gym.Env):
         return self._obs(), reward, terminated, False, info
 
     def _obs(self):
+        """
+        Builds what the agent sees before making a decision
+        862 values in a vector- player's values, waiver values, etc.
+        """
         w, D, me = self.week, self.D, self.me
         F, r = D.F, self.roster[me]
         denom = max(1, w - 1)
         owner_win = np.where(self.market >= 0, self.wins[self.owner[self.market]] / denom, 0.0)
         mk = np.concatenate([F[self.market], owner_win[:, None].astype(np.float32)], 1)
-        okf = ELIG[np.arange(N_STARTERS), self.data.pos[r[:N_STARTERS]]]
 
         def proj(t):
             rr = self.roster[t][:N_STARTERS]
