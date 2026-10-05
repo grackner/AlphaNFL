@@ -25,3 +25,7 @@ Rewards:
 Data:
 - Trained on 2023 data
 - Evaluated on 2024 season data
+
+
+## Agent Learning/Gymnasium
+1. Random team is picked for the agent based on `draft_logs`
