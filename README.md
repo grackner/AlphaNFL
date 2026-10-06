@@ -67,6 +67,7 @@ The 11 features per player (these come from `data.view(week)`)
 ### MLP Networks (Policy & Value)
 - Utilizes `MaskablePPO` from `sb3_contrib` library
 - Default MLPs have two hidden layers of size 64
+- `loss = policy_loss + vf_coef * value_loss + ent_coef * entropy_loss`
 
 <img width="1536" height="1024" alt="policymlp" src="https://github.com/user-attachments/assets/b67cb97d-1e7a-4124-8958-c2f88894c6d5" />
 
